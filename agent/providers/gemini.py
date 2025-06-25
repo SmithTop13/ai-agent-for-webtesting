@@ -1,5 +1,6 @@
 import os
 import json
+import time # Added time for rate-limiting
 import google.generativeai as genai
 from dotenv import load_dotenv
 from agent.providers.base import AIProvider
@@ -31,17 +32,19 @@ class GeminiProvider(AIProvider):
         """
         prompt = self._construct_prompt(objective, history, dom)
 
-        print("\\n----- Gemini Prompt -----")
+        print("\\n----- Gemini Prompt for get_next_action -----")
         print(prompt)
-        print("----- End Gemini Prompt -----\\n")
+        print("----- End Gemini Prompt for get_next_action -----\\n")
 
         try:
+            print("Waiting for 5 seconds before calling Gemini API (get_next_action) to avoid rate limits...")
+            time.sleep(5)
             response = self.model.generate_content(
                 prompt,
                 generation_config=self.generation_config
             )
 
-            print("\\n----- Gemini Raw Response -----")
+            print("\\n----- Gemini Raw Response (get_next_action) -----")
             print(response.text) # Accessing .text directly as response_mime_type is application/json
             print("----- End Gemini Raw Response -----\\n")
 
@@ -149,70 +152,170 @@ Now, provide the next action JSON object:
 """
         return prompt
 
+    def get_test_plan(self, objective: str, start_url: str, dom: list[dict]) -> list[str]:
+        """
+        Generates a high-level test plan using the Gemini model.
+        """
+        prompt = self._construct_plan_prompt(objective, start_url, dom)
+
+        print("\\n----- Gemini Prompt for get_test_plan -----")
+        print(prompt)
+        print("----- End Gemini Prompt for get_test_plan -----\\n")
+
+        try:
+            print("Waiting for 5 seconds before calling Gemini API (get_test_plan) to avoid rate limits...")
+            time.sleep(5)
+            response = self.model.generate_content(
+                prompt,
+                generation_config=self.generation_config # Expecting JSON array
+            )
+
+            print("\\n----- Gemini Raw Response (get_test_plan) -----")
+            print(response.text)
+            print("----- End Gemini Raw Response (get_test_plan) -----\\n")
+
+            if response.parts:
+                plan_json_str = response.text
+                try:
+                    plan_array = json.loads(plan_json_str)
+                    if not isinstance(plan_array, list) or not all(isinstance(step, str) for step in plan_array):
+                        print("Error: Gemini response for plan is not a JSON array of strings.")
+                        return ["Error: AI response for plan was not a JSON array of strings."]
+                    return plan_array
+                except json.JSONDecodeError as e:
+                    print(f"Error decoding JSON plan from Gemini response: {e}")
+                    return [f"Error: Invalid JSON plan from AI: {e}"]
+            else:
+                print("Warning: Gemini response for plan has no parts or might be blocked.")
+                if response.prompt_feedback:
+                    print(f"Prompt Feedback: {response.prompt_feedback}")
+                return ["Error: AI response for plan was empty or blocked."]
+
+        except Exception as e:
+            print(f"Error calling Gemini API for get_test_plan: {e}")
+            return [f"Error: API call for plan failed: {e}"]
+
+    def _construct_plan_prompt(self, objective: str, start_url: str, dom: list[dict]) -> str:
+        """
+        Constructs the prompt for the Gemini model to generate a test plan.
+        """
+        dom_summary_for_prompt = []
+        for el in dom:
+            summary = {
+                "tag": el.get("tag"),
+                "selector": el.get("selector"),
+                "attributes": {k: v for k, v in el.get("attributes", {}).items() if k in ['id', 'name', 'aria-label', 'placeholder', 'role', 'type', 'href', 'data-testid']},
+                "text": el.get("text_content", "")[:100]
+            }
+            if not summary["selector"]:
+                del summary["selector"]
+            dom_summary_for_prompt.append(summary)
+
+        prompt = f"""You are a QA planning agent.
+Your task is to analyze a high-level objective, a starting URL, and the initial state of the webpage's DOM (simplified to interactive elements) to create a test plan.
+The test plan should be a sequence of high-level steps to achieve the objective.
+Return these steps as a JSON array of strings.
+
+Objective: {objective}
+Start URL: {start_url}
+
+Initial Simplified DOM (interactive elements only):
+{json.dumps(dom_summary_for_prompt, indent=2)}
+
+Based on the objective and the initial page state, break down the task into a series of high-level steps.
+Return these steps as a JSON array of strings.
+
+Example:
+If the objective is "Login to the website with username 'testuser' and password 'securepass', then verify 'Welcome' is visible."
+A possible plan would be:
+["Enter 'testuser' into the username field", "Enter 'securepass' into the password field", "Click the 'Login' button", "Verify the text 'Welcome' is visible on the page"]
+
+Now, provide the JSON array of strings for the given objective and DOM:
+"""
+        return prompt
+
 if __name__ == '__main__':
     # This is a mock test, it won't actually run the browser.
-    # It's for testing the prompt construction and API call.
-    print("Testing GeminiProvider...")
+    # It's for testing the prompt construction and API call to Gemini.
+    # Note: These tests will take longer due to the 5-second delays.
+    print("Testing GeminiProvider (expect delays due to rate limit sleeps)...")
 
-    # Ensure config/.env exists with a GOOGLE_API_KEY for this test to run fully
-    if not os.path.exists(os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env')) or not os.getenv("GOOGLE_API_KEY", None):
-        print("Skipping GeminiProvider direct test as GOOGLE_API_KEY is not available or config/.env is missing.")
-        # Create a dummy .env for subsequent steps if it doesn't exist
-        if not os.path.exists(os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env')):
-            print("Creating a dummy config/.env file for structure.")
-            os.makedirs(os.path.join(os.path.dirname(__file__), '..', '..', 'config'), exist_ok=True)
-            with open(os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env'), 'w') as f:
+    config_path = os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env')
+    if not os.path.exists(config_path) or not os.getenv("GOOGLE_API_KEY", None):
+        print(f"Skipping GeminiProvider direct API test as GOOGLE_API_KEY is not available or {config_path} is missing.")
+        if not os.path.exists(config_path):
+            print(f"Creating a dummy {config_path} for structure.")
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            with open(config_path, 'w') as f:
                 f.write('GOOGLE_API_KEY="YOUR_KEY_HERE_FOR_TESTING"\n')
                 f.write('OPENAI_API_KEY="YOUR_KEY_HERE_FOR_TESTING"\n')
-
     else:
         try:
             provider = GeminiProvider()
 
-            mock_objective = "Find the contact page and click on the email address."
-            mock_history = [
-                {"action": "navigate", "url": "https://example.com", "status": "success"},
-                {"action": "click", "selector": "a[href='/about']", "reasoning": "Navigating to about page", "status": "success"}
-            ]
-            mock_dom = [
-                {"tag": "a", "selector": "#contact-link", "attributes": {"id": "contact-link", "href": "/contact"}, "text_content": "Contact Us", "is_visible": True, "is_enabled": True},
-                {"tag": "input", "selector": "input[name='search']", "attributes": {"name": "search", "type": "search"}, "text_content": "", "is_visible": True, "is_enabled": True},
-                {"tag": "button", "text_content": "Submit", "is_visible": True, "is_enabled": True, "attributes": {}}
+            # --- Test get_test_plan ---
+            print("\\n--- Testing get_test_plan ---")
+            plan_objective = "Log into the website with username 'testuser' and password 'securepass', then check for 'Welcome' message."
+            plan_start_url = "https://example.com/login"
+            plan_mock_dom = [
+                {"tag": "input", "selector": "input[name='username']", "attributes": {"name": "username", "type": "text"}, "text_content": ""},
+                {"tag": "input", "selector": "input[name='password']", "attributes": {"name": "password", "type": "password"}, "text_content": ""},
+                {"tag": "button", "selector": "button[type='submit']", "attributes": {"type": "submit"}, "text_content": "Login"}
             ]
 
-            next_action = provider.get_next_action(mock_objective, mock_history, mock_dom)
+            test_plan = provider.get_test_plan(plan_objective, plan_start_url, plan_mock_dom)
+            print("\\nTest Plan from Gemini:")
+            print(json.dumps(test_plan, indent=2))
+            assert isinstance(test_plan, list), "Test plan should be a list."
+            if test_plan: # If not empty or error
+                 assert all(isinstance(step, str) for step in test_plan), "All steps in the plan should be strings."
+                 if not any("Error:" in step for step in test_plan):
+                    assert len(test_plan) > 1, "Expected a plan with multiple steps for the given objective."
+
+            # --- Test get_next_action ---
+            print("\\n--- Testing get_next_action ---")
+            action_objective = "Enter 'testuser' into the username field" # Example of a step from a plan
+            action_history = [
+                {"action": "navigate", "url": "https://example.com/login", "status": "success"},
+                {"action": "plan_generation", "plan": ["Step 1", "Step 2"], "status": "success"}
+            ]
+            action_mock_dom = plan_mock_dom # Use the same DOM as for planning for this example step
+
+            next_action = provider.get_next_action(action_objective, action_history, action_mock_dom)
             print("\\nNext Action from Gemini:")
             print(json.dumps(next_action, indent=2))
+            assert isinstance(next_action, dict), "Next action should be a dictionary."
+            assert "action" in next_action, "Next action must contain an 'action' field."
+            if next_action.get("action") not in ["fail", "finish"]:
+                assert "selector" in next_action, "Action requires a selector."
 
-            # Test a "finish" scenario (conceptually)
-            mock_objective_finish = "You are on the login page. The user wants to log in."
-            mock_dom_login = [
-                 {"tag": "input", "selector": "input[name='username']", "attributes": {"name": "username"}, "text_content": "", "is_visible": True, "is_enabled": True},
-                 {"tag": "input", "selector": "input[name='password']", "attributes": {"name": "password", "type": "password"}, "text_content": "", "is_visible": True, "is_enabled": True},
-                 {"tag": "button", "selector": "button[type='submit']", "attributes": {"type": "submit"}, "text_content": "Log In", "is_visible": True, "is_enabled": True}
+
+            # --- Test get_next_action for a "finish" type step (conceptually) ---
+            # This tests if the AI can correctly identify a "finish" based on a step objective.
+            print("\\n--- Testing get_next_action (for a 'finish' step) ---")
+            finish_step_objective = "Verify the text 'Welcome' is visible on the page"
+            finish_mock_dom = [
+                {"tag": "h1", "text_content": "Welcome, testuser!", "attributes":{}},
+                {"tag": "p", "text_content": "You have successfully logged in.", "attributes":{}}
             ]
-            mock_history_login_attempt = [
-                {"action": "type", "selector": "input[name='username']", "text": "testuser", "status": "success"},
-                {"action": "type", "selector": "input[name='password']", "text": "password", "status": "success"},
-                {"action": "click", "selector": "button[type='submit']", "status": "success", "reasoning": "Attempting login"}
-            ]
-            # Now imagine the objective is "Successfully logged in and reached dashboard"
-            # And the DOM shows dashboard elements
-            mock_objective_dashboard = "Successfully logged in and view dashboard"
-            mock_dom_dashboard = [
-                {"tag": "h1", "text_content": "Welcome to your Dashboard!", "is_visible": True, "is_enabled": True, "attributes":{}},
-                {"tag": "a", "selector": "a[href='/logout']", "attributes": {"href": "/logout"}, "text_content": "Logout", "is_visible": True, "is_enabled": True}
+            finish_history = [
+                 {"action": "type", "selector": "input[name='username']", "text": "testuser", "status": "success"},
+                 {"action": "type", "selector": "input[name='password']", "text": "securepass", "status": "success"},
+                 {"action": "click", "selector": "button[type='submit']", "status": "success"}
             ]
 
-            print("\\nTesting 'finish' scenario conceptually:")
-            next_action_finish = provider.get_next_action(mock_objective_dashboard, mock_history_login_attempt, mock_dom_dashboard)
-            print("Next Action for 'finish' scenario:")
-            print(json.dumps(next_action_finish, indent=2))
-
+            finish_action = provider.get_next_action(finish_step_objective, finish_history, finish_mock_dom)
+            print("\\nNext Action for 'finish' step from Gemini:")
+            print(json.dumps(finish_action, indent=2))
+            assert isinstance(finish_action, dict)
+            # For a verification step, the AI might still try to look for things,
+            # or it might correctly say "finish" if the objective implies verification is the end.
+            # The prompt for get_next_action guides it to 'finish' if the *step_objective* is met.
+            assert finish_action.get("action") == "finish", "Expected AI to 'finish' the verification step if DOM confirms it."
 
         except ValueError as ve:
             print(f"Skipping GeminiProvider test due to configuration error: {ve}")
         except Exception as e:
             print(f"An error occurred during GeminiProvider test: {e}")
 
-    print("GeminiProvider structure created.")
+    print("GeminiProvider tests (including get_test_plan) completed.")

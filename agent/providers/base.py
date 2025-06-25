@@ -33,3 +33,20 @@ class AIProvider(ABC):
             If the objective cannot be achieved or an error occurs, action should be "fail".
         """
         pass
+
+    @abstractmethod
+    def get_test_plan(self, objective: str, start_url: str, dom: list[dict]) -> list[str]:
+        """
+        Generates a high-level test plan based on the objective and initial page state.
+
+        Args:
+            objective: The overall goal for the AI agent.
+            start_url: The initial URL the test will start on.
+            dom: A list of dictionaries representing the simplified interactive elements
+                 of the initial webpage.
+
+        Returns:
+            A list of strings, where each string is a high-level step in the test plan.
+            Example: ["Enter 'testuser' into the email field", "Click the 'Login' button"]
+        """
+        pass
