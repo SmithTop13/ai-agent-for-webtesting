@@ -1,5 +1,6 @@
 import os
 import json
+import datetime
 from agent.orchestrator import Orchestrator
 from agent.providers.gemini import GeminiProvider
 from dotenv import load_dotenv
@@ -35,8 +36,8 @@ def main():
     # Start URL: "https://practicetestautomation.com/practice-test-login/"
 
     # Test Objective: Search on Google
-    objective = "Search for 'Playwright Python documentation' on Google, and then click on the official Playwright Python link in the search results. Finally, verify you are on a page with 'Playwright' in its title."
-    start_url = "https://www.google.com"
+    objective = "คลิก 'login to g-track' และกรอกข้อมูล username 'vowner2@example.com' และ password '5KyB1TYoOY09' ให้ถูกต้อง จากนั้นกดปุ่ม login เพื่อเข้าสู่ระบบ จาก นั้นให้กด ที่ 'คนชับ' แล้วรอ จนตารางโหลดเสร็จ แล้วคลิก 'แก้ไข' เพื่อแก้ไขข้อมูลของคนขับ(อยู่ในตาราง) ชื่อ 'ณรงค์ คนขับซี' เปลี่ยน email จาก 'driver3@example.com' เป็น 'driver3@example.co.th'"
+    start_url = "https://www.g-tracking.com/"
 
     # --- Initialize components ---
     try:
@@ -83,9 +84,7 @@ def main():
             print(f"   Error: {record.get('error_message')}")
         print("-" * 20)
 
-import datetime
-
-# Save history to a report file
+    # Save history to a report file
     reports_dir = os.path.join(os.path.dirname(__file__), 'reports')
     os.makedirs(reports_dir, exist_ok=True)
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
