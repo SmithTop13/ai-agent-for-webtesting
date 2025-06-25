@@ -1,9 +1,20 @@
 import os
 import json
 import datetime
+import sys
 from agent.orchestrator import Orchestrator
 from agent.providers.gemini import GeminiProvider
 from dotenv import load_dotenv
+
+# Parse command-line arguments
+def parse_arguments():
+    args = sys.argv[1:]
+    arguments = {}
+    for arg in args:
+        if '=' in arg:
+            key, value = arg.split('=', 1)
+            arguments[key] = value
+    return arguments
 
 def main():
     # Ensure config/.env exists and is loaded for API keys
@@ -29,15 +40,17 @@ def main():
         print("Please update config/.env with your actual Google API Key.")
         return
 
+    # Parse CLI arguments
+    cli_args = parse_arguments()
+    objective = cli_args.get('objective', "Default objective")
+    start_url = cli_args.get('starturl', "https://www.example.com")
+
     # --- Configuration for the test ---
     # Test Objective: Log in to a test website.
     # This example uses https://practicetestautomation.com/practice-test-login/
     # Objective: "Log in to the website using username 'student' and password 'Password123', then verify successful login by finding the 'Log out' button."
     # Start URL: "https://practicetestautomation.com/practice-test-login/"
 
-    # Test Objective: Search on Google
-    objective = "คลิก 'login to g-track' และกรอกข้อมูล username 'vowner2@example.com' และ password '5KyB1TYoOY09' ให้ถูกต้อง จากนั้นกดปุ่ม login เพื่อเข้าสู่ระบบ จาก นั้นให้กด ที่ 'คนชับ' แล้วรอ จนตารางโหลดเสร็จ แล้วคลิก 'แก้ไข' เพื่อแก้ไขข้อมูลของคนขับ(อยู่ในตาราง) ชื่อ 'ณรงค์ คนขับซี' เปลี่ยน email จาก 'driver3@example.com' เป็น 'driver3@example.co.th'"
-    start_url = "https://www.g-tracking.com/"
 
     # --- Initialize components ---
     try:

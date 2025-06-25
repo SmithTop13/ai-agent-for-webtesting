@@ -9,7 +9,7 @@ class GeminiProvider(AIProvider):
     """
     AIProvider implementation using Google's Gemini model.
     """
-    def __init__(self, model_name="gemini-1.5-flash-latest"): # Or "gemini-pro" / "gemini-1.0-pro"
+    def __init__(self, model_name="gemini-2.5-flash"): # Or "gemini-pro" / "gemini-1.0-pro"
         load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '..', '..', 'config', '.env'))
         self.api_key = os.getenv("GOOGLE_API_KEY")
         if not self.api_key:
