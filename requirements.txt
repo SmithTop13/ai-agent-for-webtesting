@@ -1,0 +1,8 @@
+# Browser Automation
+playwright
+
+# AI SDKs
+google-generativeai
+python-dotenv
+
+# Add others as needed (e.g., openai)
