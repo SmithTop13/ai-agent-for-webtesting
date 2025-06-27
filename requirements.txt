@@ -1,5 +1,5 @@
 # Browser Automation
-playwright
+selenium
 
 # AI SDKs
 google-generativeai
