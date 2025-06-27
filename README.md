@@ -1,11 +1,11 @@
 # AI-Powered UI Testing Agent
 
-This project implements an AI-powered agent capable of navigating and interacting with web UIs to achieve specified objectives. It uses Playwright for browser automation and a pluggable AI provider (currently Google Gemini) to decide on the next actions.
+This project implements an AI-powered agent capable of navigating and interacting with web UIs to achieve specified objectives. It uses **Selenium** for browser automation and a pluggable AI provider (currently Google Gemini) to decide on the next actions.
 
 ## Project Structure
 
 - **`agent/`**: Contains the core logic of the agent.
-  - **`browser/`**: Houses the `BrowserController` (`controller.py`) responsible for all Playwright browser interactions.
+  - **`browser/`**: Houses the `BrowserController` (`controller.py`) responsible for all **Selenium** browser interactions.
   - **`providers/`**: Contains the AI provider interface (`base.py`) and implementations (e.g., `gemini.py`).
   - **`orchestrator.py`**: The central `Orchestrator` class that manages the observe-plan-act loop, connecting the browser controller and AI provider.
 - **`config/`**: For configuration files.
@@ -23,6 +23,8 @@ Follow these steps to set up and run the AI UI Testing Agent:
 
 - Python 3.8 or higher.
 - Access to a Google Gemini API key.
+- Google Chrome browser installed.
+- ChromeDriver executable matching your Chrome version.
 
 ### 2. Clone the Repository
 
@@ -58,14 +60,32 @@ Install the required Python packages using pip:
 pip install -r requirements.txt
 ```
 
-### 5. Install Playwright Browsers and Dependencies
+### 5. Set Up Selenium WebDriver
 
-Playwright requires browser binaries to be installed. The `--with-deps` flag will also install necessary operating system dependencies.
+Selenium requires a WebDriver to interface with the chosen browser. The `BrowserController` is currently configured to use Chrome.
 
-```bash
-playwright install --with-deps
-```
-This will download Chromium, Firefox, and WebKit browsers.
+1.  **Ensure Google Chrome is Installed:** If you don't have Google Chrome installed, download and install it from [google.com/chrome](https://www.google.com/chrome/).
+
+2.  **Download ChromeDriver:**
+    *   Check your Google Chrome browser version (Go to `Help > About Google Chrome`).
+    *   Download the corresponding ChromeDriver executable from the official site: [https://chromedriver.chromium.org/downloads](https://chromedriver.chromium.org/downloads) or [https://googlechromelabs.github.io/chrome-for-testing/](https://googlechromelabs.github.io/chrome-for-testing/) (for newer versions). Make sure the ChromeDriver version matches your Chrome browser version closely.
+
+3.  **Add ChromeDriver to System PATH:**
+    *   **macOS/Linux:** Move the `chromedriver` executable to a directory that is part of your system's PATH (e.g., `/usr/local/bin`).
+      ```bash
+      sudo mv /path/to/downloaded/chromedriver /usr/local/bin/
+      sudo chmod +x /usr/local/bin/chromedriver
+      ```
+      *(Note: You might need `sudo` depending on your permissions and target directory.)*
+    *   **Windows:**
+        1.  Create a folder for WebDrivers if you don't have one (e.g., `C:\WebDrivers`).
+        2.  Move the `chromedriver.exe` executable into this folder.
+        3.  Add this folder to your system's PATH environment variable.
+            (Search for "environment variables" in Windows search, click "Edit the system environment variables", click "Environment Variables...", find "Path" under "System variables", click "Edit...", click "New", and add the path to your WebDriver folder, e.g., `C:\WebDrivers`).
+
+    Alternatively, you can place `chromedriver` (or `chromedriver.exe`) directly in your project's root directory or a known script location, but adding it to the PATH is generally more robust for development. The current `BrowserController` expects `chromedriver` to be found in the system PATH.
+
+*(Note: If you wish to use a different browser like Firefox, you would need to install Mozilla Firefox, download GeckoDriver from [Mozilla's geckodriver releases page](https://github.com/mozilla/geckodriver/releases), add it to your PATH, and modify `agent/browser/controller.py` to initialize `webdriver.Firefox()` instead of `webdriver.Chrome()`.)*
 
 ### 6. Configure API Keys
 
@@ -112,7 +132,7 @@ Run the agent from the project root directory:
 python main.py
 ```
 
-The agent will launch a browser (Chromium by default, non-headless so you can see its actions) and attempt to achieve the specified objective.
+The agent will launch a browser (Google Chrome by default, using Selenium; non-headless by default so you can see its actions) and attempt to achieve the specified objective.
 
 ### 3. View Reports
 
@@ -122,7 +142,7 @@ After the agent finishes (either by achieving the objective, failing, or reachin
 
 The agent operates on an "observe-plan-act" loop:
 
-1.  **Observe**: The `BrowserController` captures a simplified version of the current page's Document Object Model (DOM), focusing on interactive elements (links, buttons, inputs, etc.).
+1.  **Observe**: The `BrowserController`, using Selenium, captures a simplified version of the current page's Document Object Model (DOM), focusing on interactive elements (links, buttons, inputs, etc.).
 2.  **Plan**: The `Orchestrator` sends the current objective, the history of past actions, and the simplified DOM to the configured `AIProvider` (e.g., `GeminiProvider`). The AI provider then returns the next action it believes will help achieve the objective.
 3.  **Act**: The `Orchestrator` instructs the `BrowserController` to execute the action suggested by the AI (e.g., click an element, type text).
 
